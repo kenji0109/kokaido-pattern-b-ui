@@ -508,9 +508,9 @@ export default function App() {
 
   const internetToggleStyle = {
     appearance: "none",
-    border: "1px solid #b8d8b8",
-    background: "#f0f8f0",
-    color: "#2e7d52",
+    border: "1px solid #d5c8be",
+    background: "#faf7f5",
+    color: "#7f523a",
     borderRadius: "12px",
     padding: "10px 16px",
     fontWeight: 700,
@@ -695,7 +695,7 @@ export default function App() {
                   <button type="button" onClick={backToStep1}>
                     部屋選択に戻る
                   </button>
-                  <button type="button" onClick={addRow}>
+                  <button type="button" className="btn-add-row" onClick={addRow}>
                     ＋ 日程を追加
                   </button>
                   <button type="button" onClick={resetRows}>

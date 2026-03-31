@@ -147,6 +147,19 @@ button {
   transform: translateY(-1px);
 }
 
+.btn-add-row {
+  background: #2e7d32 !important;
+  border-color: #2e7d32 !important;
+  color: #fff !important;
+}
+
+.btn-add-row:hover {
+  background: #1b5e20 !important;
+  border-color: #1b5e20 !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+}
+
 .day-list {
   display: grid;
   gap: 18px;
