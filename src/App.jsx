@@ -696,7 +696,7 @@ export default function App() {
                     部屋選択に戻る
                   </button>
                   <button type="button" onClick={addRow}>
-                    ＋ 行を追加
+                    ＋ 日程を追加
                   </button>
                   <button type="button" onClick={resetRows}>
                     リセット

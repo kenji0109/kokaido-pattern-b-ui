@@ -52,13 +52,15 @@ function normalizeMasterRow(row) {
 // CSV 読み込み
 // =========================================
 
-export async function loadEquipmentGroupsCsv(path = "/data/equipment_groups.csv") {
-  const rows = await loadCsv(path);
+export async function loadEquipmentGroupsCsv(path) {
+  const resolvedPath = path ?? `${import.meta.env.BASE_URL}data/equipment_groups.csv`;
+  const rows = await loadCsv(resolvedPath);
   return rows.map(normalizeGroupRow).filter((r) => r.group_id);
 }
 
-export async function loadEquipmentMasterCsv(path = "/data/equipment_master.csv") {
-  const rows = await loadCsv(path);
+export async function loadEquipmentMasterCsv(path) {
+  const resolvedPath = path ?? `${import.meta.env.BASE_URL}data/equipment_master.csv`;
+  const rows = await loadCsv(resolvedPath);
   return rows.map(normalizeMasterRow).filter((r) => r.item_id && r.group_id);
 }
 

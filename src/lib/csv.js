@@ -97,8 +97,9 @@ export function normalizePriceRow(row) {
   };
 }
 
-export async function loadPricesCsv(path = "/data/prices.csv") {
-  const rows = await loadCsv(path);
+export async function loadPricesCsv(path) {
+  const resolvedPath = path ?? `${import.meta.env.BASE_URL}data/prices.csv`;
+  const rows = await loadCsv(resolvedPath);
 
   return rows
     .map(normalizePriceRow)
