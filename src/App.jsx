@@ -95,10 +95,11 @@ export default function App() {
         setLoading(true);
         setLoadError("");
 
+        const base = import.meta.env.BASE_URL;
         const [prices, groups, items] = await Promise.all([
-          loadPricesCsv("/data/prices.csv"),
-          loadEquipmentGroupsCsv("/data/equipment_groups.csv"),
-          loadEquipmentMasterCsv("/data/equipment_master.csv"),
+          loadPricesCsv(`${base}data/prices.csv`),
+          loadEquipmentGroupsCsv(`${base}data/equipment_groups.csv`),
+          loadEquipmentMasterCsv(`${base}data/equipment_master.csv`),
         ]);
 
         if (cancelled) return;
