@@ -374,9 +374,13 @@ export default function App() {
       const current = prev[rowId] ?? [];
       return {
         ...prev,
-        [rowId]: current.map((s) =>
-          s.itemId === itemId ? { ...s, qty: Math.max(0, Number(qty) || 0) } : s
-        ),
+        [rowId]: current.map((s) => {
+          if (s.itemId !== itemId) return s;
+          const item = masterIndex.get(itemId);
+          const maxQty = item?.max_qty ?? 0;
+          const clamped = Math.max(0, Number(qty) || 0);
+          return { ...s, qty: maxQty > 0 ? Math.min(clamped, maxQty) : clamped };
+        }),
       };
     });
   }
@@ -943,6 +947,7 @@ export default function App() {
                                         <input
                                           type="number"
                                           min="0"
+                                          max={item.max_qty > 0 ? item.max_qty : undefined}
                                           value={sel.qty}
                                           onChange={(e) =>
                                             updateEquipmentQty(row.id, sel.itemId, e.target.value)

@@ -45,6 +45,7 @@ function normalizeMasterRow(row) {
     notes: normalizeText(row.notes),
     is_countable: toNumber(row.is_countable, 1),
     is_power_item: toNumber(row.is_power_item, 0),
+    max_qty: toNumber(row.max_qty, 0), // 0 = 制限なし
   };
 }
 
