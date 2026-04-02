@@ -100,9 +100,12 @@ export function isWeekend(value) {
  * 月〜金 = 平日
  *
  * ※ 祝日判定は後で拡張可能
+ * ※ 日付が未入力または不正の場合は null を返す（"平日" にフォールバックしない）
  */
 export function getAutoDayType(value) {
-  return isWeekend(value) ? "土日祝" : "平日";
+  const day = getWeekdayIndex(value);
+  if (day === null) return null;
+  return (day === 0 || day === 6) ? "土日祝" : "平日";
 }
 
 /**

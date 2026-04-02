@@ -11,6 +11,7 @@ import {
 import {
   formatDateInput,
   formatDateWithWeekday,
+  getAutoDayType,
 } from "./lib/dateUtils";
 import {
   loadEquipmentGroupsCsv,
@@ -164,7 +165,11 @@ export default function App() {
   // ─── 部屋料金の見積 ───
   const filledRows = useMemo(() => {
     return dayRows.filter((row) => {
-      return String(row.room).trim() !== "" && String(row.slot).trim() !== "";
+      return (
+        String(row.date).trim() !== "" &&
+        String(row.room).trim() !== "" &&
+        String(row.slot).trim() !== ""
+      );
     });
   }, [dayRows]);
 
@@ -216,6 +221,28 @@ export default function App() {
     });
   }, [filledRows, internetSelections]);
 
+  // ─── 行ID → roomEstimate.items のマップ（行レベルのエラー表示用） ───
+  const roomEstimateByRow = useMemo(() => {
+    const map = new Map();
+    filledRows.forEach((row, idx) => {
+      if (roomEstimate.items[idx]) {
+        map.set(row.id, roomEstimate.items[idx]);
+      }
+    });
+    return map;
+  }, [filledRows, roomEstimate.items]);
+
+  // ─── 未入力行またはエラー行があるか（サマリーの「暫定」表示に使う） ───
+  const hasPendingRows = useMemo(() => {
+    const hasIncomplete = dayRows.some(
+      (row) =>
+        String(row.date).trim() === "" ||
+        String(row.room).trim() === "" ||
+        String(row.slot).trim() === ""
+    );
+    return hasIncomplete || roomEstimate.hasError;
+  }, [dayRows, roomEstimate.hasError]);
+
   // ─── 合計 ───
   const grandTotal = useMemo(() => {
     return roomEstimate.grandTotal + equipEstimate.total + internetEstimate.total;
@@ -231,7 +258,9 @@ export default function App() {
         String(row.dayType).trim() !== "" ||
         String(row.priceType).trim() !== "";
       const isComplete =
-        String(row.room).trim() !== "" && String(row.slot).trim() !== "";
+        String(row.date).trim() !== "" &&
+        String(row.room).trim() !== "" &&
+        String(row.slot).trim() !== "";
       return hasAnyInput && !isComplete;
     }).length;
   }, [dayRows]);
@@ -745,19 +774,27 @@ export default function App() {
 
                       <div className="form-grid">
                         <label>
-                          <span>利用日</span>
+                          <span>
+                            利用日
+                            <span style={{ color: "#c0392b", marginLeft: "3px", fontSize: "11px" }}>必須</span>
+                          </span>
                           <input
                             type="date"
                             value={row.date}
                             onChange={(e) => updateRow(row.id, "date", e.target.value)}
+                            style={!String(row.date).trim() ? { borderColor: "#e74c3c" } : {}}
                           />
                         </label>
 
                         <label>
-                          <span>部屋</span>
+                          <span>
+                            部屋
+                            <span style={{ color: "#c0392b", marginLeft: "3px", fontSize: "11px" }}>必須</span>
+                          </span>
                           <select
                             value={row.room}
                             onChange={(e) => updateRow(row.id, "room", e.target.value)}
+                            style={!String(row.room).trim() ? { borderColor: "#e74c3c" } : {}}
                           >
                             <option value="">選択してください</option>
                             {availableRoomsForInput.map((room) => (
@@ -769,10 +806,14 @@ export default function App() {
                         </label>
 
                         <label>
-                          <span>利用区分</span>
+                          <span>
+                            利用区分
+                            <span style={{ color: "#c0392b", marginLeft: "3px", fontSize: "11px" }}>必須</span>
+                          </span>
                           <select
                             value={row.slot}
                             onChange={(e) => updateRow(row.id, "slot", e.target.value)}
+                            style={!String(row.slot).trim() ? { borderColor: "#e74c3c" } : {}}
                           >
                             <option value="">選択してください</option>
                             {slotOptions.map((slot) => (
@@ -827,9 +868,66 @@ export default function App() {
                         </label>
                       </div>
 
-                      <div className="mini-note">
-                        <span>表示日: {formatDateWithWeekday(row.date) || "未入力"}</span>
-                      </div>
+                      {/* 日付・曜日区分の確認バッジ */}
+                      {(() => {
+                        const effectiveDayType = row.dayType || getAutoDayType(row.date);
+                        const isWeekend = effectiveDayType === "土日祝";
+                        return (
+                          <div className="mini-note" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <span>表示日: {formatDateWithWeekday(row.date) || "未入力"}</span>
+                            {row.date && effectiveDayType && (
+                              <span style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                padding: "2px 10px",
+                                borderRadius: "999px",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                background: isWeekend ? "#fef3c7" : "#e8f5e9",
+                                color: isWeekend ? "#92400e" : "#2e7d32",
+                                border: `1px solid ${isWeekend ? "#f59e0b" : "#81c784"}`,
+                              }}>
+                                {effectiveDayType}{!row.dayType ? "（自動）" : "（手動）"}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* 行レベルのバリデーションメッセージ */}
+                      {(() => {
+                        const missing = [];
+                        if (!String(row.date).trim()) missing.push("利用日");
+                        if (!String(row.room).trim()) missing.push("部屋");
+                        if (!String(row.slot).trim()) missing.push("利用区分");
+                        const estimateItem = roomEstimateByRow.get(row.id);
+                        const pricingErrors = estimateItem && !estimateItem.isValid
+                          ? estimateItem.errors.filter((e) => !e.includes("未指定") && !e.includes("未入力"))
+                          : [];
+                        if (missing.length === 0 && pricingErrors.length === 0) return null;
+                        return (
+                          <div style={{
+                            marginTop: "8px",
+                            padding: "8px 12px",
+                            background: "#fff8f0",
+                            border: "1px solid #f5a623",
+                            borderRadius: "8px",
+                            fontSize: "13px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "3px",
+                          }}>
+                            {missing.length > 0 && (
+                              <span style={{ color: "#c0392b", fontWeight: 700 }}>
+                                ⚠ {missing.join("・")}を入力してください
+                              </span>
+                            )}
+                            {pricingErrors.map((err, i) => (
+                              <span key={i} style={{ color: "#c0392b", fontWeight: 600 }}>⚠ {err}</span>
+                            ))}
+                          </div>
+                        );
+                      })()}
 
                       {/* ===== 備品セクション ===== */}
                       <button
@@ -1365,8 +1463,17 @@ export default function App() {
               <strong>{formatYen(internetEstimate.total)}</strong>
             </div>
             <div className="total-line grand">
-              <span>見積合計</span>
-              <strong>{formatYen(grandTotal)}</strong>
+              <span>
+                {hasPendingRows ? "暫定合計" : "見積合計"}
+                {hasPendingRows && (
+                  <span style={{ marginLeft: "6px", fontSize: "11px", fontWeight: 600, color: "#c0392b" }}>
+                    ※未入力あり
+                  </span>
+                )}
+              </span>
+              <strong style={{ color: hasPendingRows ? "#c0392b" : undefined }}>
+                {formatYen(grandTotal)}
+              </strong>
             </div>
           </div>
 
@@ -1433,20 +1540,27 @@ export default function App() {
                     </thead>
                     <tbody>
                       {roomEstimate.items.map((item, index) => (
-                        <tr key={`room-${item.date}-${item.room}-${item.slot}-${index}`}>
-                          <td>{formatDateWithWeekday(item.date)}</td>
-                          <td>{displayRoomName(item.room)}</td>
-                          <td>{item.dayType}</td>
+                        <tr
+                          key={`room-${item.date}-${item.room}-${item.slot}-${index}`}
+                          style={!item.isValid ? { background: "#fff8f0", color: "#c0392b", opacity: 0.75 } : undefined}
+                          title={!item.isValid ? `未計算（${item.errors.join("、")}）` : undefined}
+                        >
+                          <td>{formatDateWithWeekday(item.date) || "—"}</td>
+                          <td>{displayRoomName(item.room) || "—"}</td>
+                          <td>{item.dayType || "—"}</td>
                           <td>{item.priceType}</td>
-                          <td>{item.slot}</td>
-                          <td>{formatYen(item.basePrice)}</td>
+                          <td>{item.slot || "—"}</td>
+                          <td>{item.isValid ? formatYen(item.basePrice) : "—"}</td>
                           <td>
                             {item.extension}
                             {item.extensionCount > 0 ? `（${item.extensionCount}回）` : ""}
                           </td>
-                          <td>{formatYen(item.extensionPrice)}</td>
+                          <td>{item.isValid ? formatYen(item.extensionPrice) : "—"}</td>
                           <td>
-                            <strong>{formatYen(item.total)}</strong>
+                            {item.isValid
+                              ? <strong>{formatYen(item.total)}</strong>
+                              : <span style={{ fontSize: "12px" }}>未計算</span>
+                            }
                           </td>
                         </tr>
                       ))}
@@ -1461,6 +1575,20 @@ export default function App() {
                       </tr>
                     </tfoot>
                   </table>
+                  {roomEstimate.hasInvalidItems && (
+                    <div style={{
+                      marginTop: "6px",
+                      padding: "6px 12px",
+                      background: "#fff8f0",
+                      border: "1px solid #f5a623",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      color: "#c0392b",
+                      fontWeight: 600,
+                    }}>
+                      ⚠ 未入力または料金マスタ不一致の行は小計から除外しています。
+                    </div>
+                  )}
                 </>
               )}
 
@@ -1652,10 +1780,17 @@ export default function App() {
                   gap: "12px",
                 }}
               >
-                <div style={{ fontSize: "15px", fontWeight: 700, color: "#7f523a" }}>
-                  見積総合計
+                <div>
+                  <div style={{ fontSize: "15px", fontWeight: 700, color: "#7f523a" }}>
+                    {hasPendingRows ? "暫定合計（参考）" : "見積総合計"}
+                  </div>
+                  {hasPendingRows && (
+                    <div style={{ fontSize: "12px", color: "#c0392b", marginTop: "2px" }}>
+                      未入力・未計算の行は含まれていません
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: "24px", fontWeight: 800, color: "#2f2723" }}>
+                <div style={{ fontSize: "24px", fontWeight: 800, color: hasPendingRows ? "#c0392b" : "#2f2723" }}>
                   {formatYen(grandTotal)}
                 </div>
               </div>

@@ -1,6 +1,6 @@
 // src/lib/roomPricing.js
 
-import { resolveDayType } from "./dateUtils";
+import { resolveDayType, parseDate } from "./dateUtils";
 
 function normalizeText(value) {
   return String(value ?? "").trim();
@@ -8,6 +8,7 @@ function normalizeText(value) {
 
 export function createPricesIndex(priceRows) {
   const map = new Map();
+  const seen = new Set();
 
   (priceRows ?? []).forEach((row) => {
     const room = normalizeText(row.room);
@@ -19,6 +20,10 @@ export function createPricesIndex(priceRows) {
     if (!room || !dayType || !priceType || !slot) return;
 
     const key = [room, dayType, priceType, slot].join("|");
+    if (seen.has(key)) {
+      console.warn(`[roomPricing] 料金マスタに重複キーがあります: ${key}`);
+    }
+    seen.add(key);
     map.set(key, Number.isFinite(amount) ? amount : 0);
   });
 
@@ -132,18 +137,43 @@ export function calculateRoomDayPrice(index, day) {
   const slot = normalizeText(day?.slot);
   const priceType = normalizeText(day?.priceType || "通常");
   const extension = normalizeText(day?.extension || "なし");
-  const date = day?.date ?? "";
-  const dayType = resolveDayType({
-    date,
-    dayType: day?.dayType,
-  });
+  const date = normalizeText(day?.date);
 
   const errors = [];
 
-  if (!room) errors.push("room が未指定です");
-  if (!slot) errors.push("slot が未指定です");
+  // 日付バリデーション（実質必須・不正日付はエラー）
+  if (!date) {
+    errors.push("利用日が未入力です");
+  } else if (!parseDate(date)) {
+    errors.push(`利用日が不正です: ${date}`);
+  }
 
-  if (errors.length > 0) {
+  if (!room) errors.push("部屋が未指定です");
+  if (!slot) errors.push("利用区分が未指定です");
+
+  // 日付不正なら dayType を自動判定できないため早期リターン
+  if (!date || !parseDate(date)) {
+    return {
+      date,
+      room,
+      slot,
+      dayType: "",
+      priceType,
+      extension,
+      basePrice: 0,
+      extensionPrice: 0,
+      total: 0,
+      extensionCount: getExtensionCount(extension),
+      isValid: false,
+      errors,
+      baseFound: false,
+      extensionFound: false,
+    };
+  }
+
+  const dayType = resolveDayType({ date, dayType: day?.dayType });
+
+  if (!room || !slot) {
     return {
       date,
       room,
@@ -207,16 +237,19 @@ export function calculateRoomDayPrice(index, day) {
 
 /**
  * 複数日まとめて計算
+ * isValid === false の行は合計に含めない（誤計算防止）
  */
 export function calculateRoomEstimate(index, dayList) {
   const items = (dayList ?? []).map((day) => calculateRoomDayPrice(index, day));
 
-  const totalBasePrice = items.reduce((sum, item) => sum + item.basePrice, 0);
-  const totalExtensionPrice = items.reduce((sum, item) => sum + item.extensionPrice, 0);
-  const grandTotal = items.reduce((sum, item) => sum + item.total, 0);
+  const validItems = items.filter((item) => item.isValid);
+  const totalBasePrice = validItems.reduce((sum, item) => sum + item.basePrice, 0);
+  const totalExtensionPrice = validItems.reduce((sum, item) => sum + item.extensionPrice, 0);
+  const grandTotal = validItems.reduce((sum, item) => sum + item.total, 0);
 
   const errors = items.flatMap((item) => item.errors);
   const hasError = errors.length > 0;
+  const hasInvalidItems = items.some((item) => !item.isValid);
 
   return {
     items,
@@ -224,6 +257,7 @@ export function calculateRoomEstimate(index, dayList) {
     totalExtensionPrice,
     grandTotal,
     hasError,
+    hasInvalidItems,
     errors,
   };
 }
