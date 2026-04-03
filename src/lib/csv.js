@@ -5,58 +5,82 @@ function stripBom(text) {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
-function splitCsvLine(line) {
-  const result = [];
+/**
+ * CSV テキスト全体をパースし、フィールド配列の配列を返す。
+ * quoted field 内の改行・カンマ・"" エスケープを正しく処理する。
+ */
+function tokenizeCsv(text) {
+  const rows = [];
+  let fields = [];
   let current = "";
   let inQuotes = false;
+  let i = 0;
 
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    const next = line[i + 1];
+  while (i < text.length) {
+    const ch = text[i];
 
-    if (char === '"') {
-      // "" はエスケープされたダブルクォート
-      if (inQuotes && next === '"') {
-        current += '"';
+    if (inQuotes) {
+      if (ch === '"') {
+        // "" はエスケープされたダブルクォート
+        if (text[i + 1] === '"') {
+          current += '"';
+          i += 2;
+        } else {
+          // 閉じクォート
+          inQuotes = false;
+          i += 1;
+        }
+      } else {
+        // quoted field 内の改行もそのまま取り込む
+        current += ch;
+        i += 1;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+        i += 1;
+      } else if (ch === ",") {
+        fields.push(current.trim());
+        current = "";
+        i += 1;
+      } else if (ch === "\n") {
+        fields.push(current.trim());
+        current = "";
+        // 完全に空の行は無視する
+        if (fields.some((f) => f !== "")) {
+          rows.push(fields);
+        }
+        fields = [];
         i += 1;
       } else {
-        inQuotes = !inQuotes;
+        current += ch;
+        i += 1;
       }
-      continue;
     }
-
-    if (char === "," && !inQuotes) {
-      result.push(current);
-      current = "";
-      continue;
-    }
-
-    current += char;
   }
 
-  result.push(current);
-  return result.map((v) => v.trim());
+  // ファイル末尾に改行がない場合の残余処理
+  fields.push(current.trim());
+  if (fields.some((f) => f !== "")) {
+    rows.push(fields);
+  }
+
+  return rows;
 }
 
 export function parseCsv(text) {
   const cleaned = stripBom(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = cleaned
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "");
+  const rows = tokenizeCsv(cleaned);
 
-  if (lines.length === 0) return [];
+  if (rows.length === 0) return [];
 
-  const headers = splitCsvLine(lines[0]);
+  const headers = rows[0];
 
-  return lines.slice(1).map((line) => {
-    const values = splitCsvLine(line);
+  return rows.slice(1).map((fields) => {
     const row = {};
-
     headers.forEach((header, index) => {
-      row[header] = values[index] ?? "";
+      row[header] = fields[index] ?? "";
     });
-
     return row;
   });
 }

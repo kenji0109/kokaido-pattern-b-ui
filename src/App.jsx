@@ -383,7 +383,7 @@ export default function App() {
     }));
   }
 
-  function addEquipmentItem(rowId, itemId, roomSlot) {
+  function addEquipmentItem(rowId, itemId) {
     setEquipmentSelections((prev) => {
       const current = prev[rowId] ?? [];
       // 既に追加済みならスキップ
@@ -594,8 +594,8 @@ export default function App() {
       </header>
 
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
-        <div style={stepBadgeStyle(step === 1)}>STEP 1　部屋を選ぶ</div>
-        <div style={stepBadgeStyle(step === 2)}>STEP 2　利用内容を入力</div>
+        <div style={stepBadgeStyle(step === 1)}>STEP 1 部屋を選ぶ</div>
+        <div style={stepBadgeStyle(step === 2)}>STEP 2 利用内容を入力</div>
       </div>
 
       <main className="app-main two-column">
@@ -1228,7 +1228,7 @@ export default function App() {
                                       type="button"
                                       style={equipAddBtnStyle}
                                       onClick={() =>
-                                        addEquipmentItem(row.id, item.item_id, row.slot)
+                                        addEquipmentItem(row.id, item.item_id)
                                       }
                                       title={
                                         item.notes

@@ -641,7 +641,10 @@ export function getAvailableInternetPlans(room) {
 export function calculateInternetEstimate({ usageRows, internetSelections }) {
   if (!usageRows || !internetSelections) return { total: 0, lines: [] };
 
-  // 固定回線: 部屋ごとにまとめて日付順ソート → 初日判定
+  // 固定回線: 部屋ごとにまとめて日付順ソート →
+  // 「連続した日付のまとまり」ごとに初日を判定する。
+  // 例: 4/1, 4/2 は連続 → 4/1=初日, 4/2=2日目以降
+  //     4/10 は別グループ → 4/10=初日
   const fixedLineByRoom = new Map();
   for (const row of usageRows) {
     if (internetSelections[row.id] === "fixed_line") {
@@ -653,10 +656,20 @@ export function calculateInternetEstimate({ usageRows, internetSelections }) {
   for (const arr of fixedLineByRoom.values()) {
     arr.sort((a, b) => String(a.date).localeCompare(String(b.date)));
   }
-  // rowId → isFirstDay
+
+  // rowId → isFirstDay（連続グループの先頭だけ true）
   const fixedLineInfo = new Map();
   for (const arr of fixedLineByRoom.values()) {
-    arr.forEach((r, i) => fixedLineInfo.set(r.id, i === 0));
+    let prevDateMs = null;
+    for (const r of arr) {
+      const curDateMs = r.date ? new Date(r.date).getTime() : NaN;
+      const isConsecutive =
+        prevDateMs !== null &&
+        Number.isFinite(curDateMs) &&
+        curDateMs - prevDateMs === 86400000; // 1日 = 86,400,000ms
+      fixedLineInfo.set(r.id, !isConsecutive);
+      prevDateMs = Number.isFinite(curDateMs) ? curDateMs : null;
+    }
   }
 
   const lines = [];

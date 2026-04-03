@@ -1,16 +1,109 @@
-# React + Vite
+# 大阪市中央公会堂 料金シミュレーター
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+大阪市中央公会堂の部屋利用料・延長料・備品料・インターネット料金を  
+ブラウザ上でかんたんに試算できる React アプリです。
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## アプリ概要
 
-## React Compiler
+- **STEP 1**: 利用する部屋を選択
+- **STEP 2**: 日程・時間区分・備品・インターネットを入力し、リアルタイムで見積を確認
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+料金データは `public/data/` 以下の CSV ファイルから動的に読み込みます。  
+CSV を更新するだけで料金改定に対応できます。
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 開発起動
+
+```bash
+npm install
+npm run dev
+```
+
+ブラウザで `http://localhost:5173` を開いてください。
+
+---
+
+## ビルド
+
+```bash
+npm run build
+```
+
+`dist/` ディレクトリに本番用ファイルが出力されます。
+
+---
+
+## GitHub Pages デプロイ
+
+```bash
+npm run deploy
+```
+
+`vite.config.js` の `base` が `/kokaido-calculator/` に設定されています。  
+リポジトリ名が異なる場合はここを変更してください。
+
+デプロイ先: `https://<ユーザー名>.github.io/kokaido-calculator/`
+
+---
+
+## テスト
+
+```bash
+npm test
+```
+
+[Vitest](https://vitest.dev/) を使用しています。  
+テストファイルは `src/lib/*.test.js` に配置しています。
+
+---
+
+## Lint
+
+```bash
+npm run lint
+```
+
+---
+
+## public/data/*.csv の役割
+
+| ファイル | 内容 |
+|---|---|
+| `prices.csv` | 部屋ごとの基本料金（平日・土日祝、時間区分別） |
+| `equipment_groups.csv` | 備品グループ定義（適用部屋・区分継承可否） |
+| `equipment_master.csv` | 備品マスタ（単価・依存関係・数量上限など） |
+
+---
+
+## 料金計算ルール概要
+
+### 部屋料金
+- 時間区分（午前／午後／夜間／全日など）と曜日種別（平日／土日祝）で単価が決まります
+- 延長（前後 30 分単位）は別途加算されます
+
+### 備品料金
+- **区分課金**: `price_per_slot × 時間倍率 × 数量`
+- **一回課金**: `price_once_yen × 数量`（時間区分に関係なく固定）
+- PA 拡声装置を選択すると、付属マイク・マイクスタンドが規定本数まで無料になります
+
+### インターネット料金
+| プラン | 料金 |
+|---|---|
+| ポケット Wi-Fi | 2,800 円 / 日 |
+| 固定回線 | 初日 18,000 円、**連続した日付**の 2 日目以降 2,000 円 / 日 |
+| 臨時回線 | 5,000 円（一回） |
+
+> 固定回線は「連続した日付のまとまり」ごとに初日判定を行います。  
+> 例: 4/1-4/2 は連続（18,000 + 2,000）、4/10 は別グループとして再び初日（18,000）。
+
+---
+
+## 技術スタック
+
+- [React 19](https://react.dev/)
+- [Vite 8](https://vite.dev/)
+- [Vitest](https://vitest.dev/)
+- ESLint (flat config)
