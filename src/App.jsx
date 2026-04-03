@@ -25,6 +25,7 @@ import {
   getHallConsultationWarnings,
   getAvailableInternetPlans,
   calculateInternetEstimate,
+  buildFixedLineDayInfo,
 } from "./lib/equipmentPricing";
 
 function createRow(overrides = {}) {
@@ -221,6 +222,10 @@ export default function App() {
     });
   }, [filledRows, internetSelections]);
 
+  const fixedLineDayInfoByRow = useMemo(() => {
+    return buildFixedLineDayInfo(filledRows, internetSelections);
+  }, [filledRows, internetSelections]);
+
   // ─── 行ID → roomEstimate.items のマップ（行レベルのエラー表示用） ───
   const roomEstimateByRow = useMemo(() => {
     const map = new Map();
@@ -280,11 +285,12 @@ export default function App() {
     }
 
     setDayRows((prev) => {
-      const nextRows = selectedRooms.map((room) => {
-        const existing = prev.find((row) => row.room === room);
-        return existing
-          ? { ...existing }
-          : createRow({ room, priceType: "通常", extension: "なし" });
+      const nextRows = selectedRooms.flatMap((room) => {
+        const existingRows = prev.filter((row) => row.room === room);
+        if (existingRows.length > 0) {
+          return existingRows.map((row) => ({ ...row }));
+        }
+        return [createRow({ room, priceType: "通常", extension: "なし" })];
       });
       return nextRows;
     });
@@ -300,8 +306,26 @@ export default function App() {
     setDayRows((prev) =>
       prev.map((row) => (row.id === id ? { ...row, [key]: value } : row))
     );
-    // 部屋が変わったとき、利用不可になったインターネットプランをリセット
+
     if (key === "room") {
+      setEquipmentSelections((prev) => {
+        const current = prev[id];
+        if (!current || current.length === 0) return prev;
+
+        const availableItems = getAvailableEquipmentForRoom(value, groupIndex, masterIndex);
+        const availableIds = new Set(availableItems.map((item) => item.item_id));
+        const filtered = current.filter((selection) => availableIds.has(selection.itemId));
+
+        if (filtered.length === current.length) return prev;
+        if (filtered.length === 0) {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        }
+        return { ...prev, [id]: filtered };
+      });
+
+      // 部屋が変わったとき、利用不可になったインターネットプランをリセット
       setInternetSelections((prev) => {
         const current = prev[id];
         if (!current || current === "none") return prev;
@@ -364,6 +388,10 @@ export default function App() {
     setOpenEquipRows({});
     setInternetSelections({});
     setOpenInternetRows({});
+  }
+
+  function canOverrideEquipmentSlot(item) {
+    return Boolean(item?.allowed_slot_override);
   }
 
   // ─── インターネット操作 ───
@@ -996,6 +1024,7 @@ export default function App() {
                                   if (!item) return null;
 
                                   const isSlotItem = item.price_per_slot > 0;
+                                  const canOverrideSlot = canOverrideEquipmentSlot(item);
 
                                   // 控除後の金額・控除数は equipEstimate.lines から取得
                                   const lineInfo = equipEstimate.lines.find(
@@ -1064,7 +1093,7 @@ export default function App() {
                                         </span>
                                       </label>
 
-                                      {isSlotItem && (
+                                      {isSlotItem && canOverrideSlot && (
                                         <label style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                                           <span style={{ color: "#7b6f68", fontSize: "12px" }}>区分</span>
                                           <select
@@ -1085,6 +1114,12 @@ export default function App() {
                                             ))}
                                           </select>
                                         </label>
+                                      )}
+
+                                      {isSlotItem && !canOverrideSlot && (
+                                        <span style={{ color: "#7b6f68", fontSize: "12px" }}>
+                                          区分変更不可
+                                        </span>
                                       )}
 
                                       <span
@@ -1287,19 +1322,10 @@ export default function App() {
                         const currentPrice = currentRowLine?.price ?? null;
 
                         // 固定回線: この行が同一部屋で何日目か
-                        let fixedLineDayInfo = null;
-                        if (currentPlan === "fixed_line") {
-                          const fixedLinesForRoom = internetEstimate.lines
-                            .filter((l) => l.plan === "fixed_line" && l.room === row.room)
-                            .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-                          const idx = fixedLinesForRoom.findIndex((l) => l.rowId === row.id);
-                          if (idx !== -1) {
-                            fixedLineDayInfo = {
-                              dayNumber: idx + 1,
-                              isFirstDay: fixedLinesForRoom[idx].isFirstDay,
-                            };
-                          }
-                        }
+                        const fixedLineDayInfo =
+                          currentPlan === "fixed_line"
+                            ? fixedLineDayInfoByRow.get(row.id) ?? null
+                            : null;
 
                         // ラジオ選択肢の補足テキスト
                         const planSubtitles = {

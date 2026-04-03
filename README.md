@@ -42,10 +42,10 @@ npm run build
 npm run deploy
 ```
 
-`vite.config.js` の `base` が `/kokaido-calculator/` に設定されています。  
+`vite.config.js` の `base` が `/kokaido-pattern-b-ui/` に設定されています。  
 リポジトリ名が異なる場合はここを変更してください。
 
-デプロイ先: `https://<ユーザー名>.github.io/kokaido-calculator/`
+デプロイ先: `https://<ユーザー名>.github.io/kokaido-pattern-b-ui/`
 
 ---
 

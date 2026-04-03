@@ -551,12 +551,12 @@ export function calculateEquipmentEstimate({
       // 備品の区分: 個別指定があればそれ、なければ行の利用区分を引き継ぐ
       const group = groupIndex.get(item.group_id);
       let equipSlot;
-      if (sel.slot) {
+      if (sel.slot && group?.allowed_slot_override) {
         equipSlot = sel.slot;
       } else if (group && group.default_inherit_room_slot) {
         equipSlot = rowSlot;
       } else {
-        equipSlot = rowSlot;
+        equipSlot = "";
       }
 
       const line = calculateEquipmentLine(item, effectiveQty, equipSlot);
@@ -626,6 +626,46 @@ export function getAvailableInternetPlans(room) {
   return result;
 }
 
+export function buildFixedLineDayInfo(usageRows, internetSelections) {
+  const fixedLineByRoom = new Map();
+  for (const row of usageRows ?? []) {
+    if (internetSelections?.[row.id] === "fixed_line") {
+      const arr = fixedLineByRoom.get(row.room) ?? [];
+      arr.push(row);
+      fixedLineByRoom.set(row.room, arr);
+    }
+  }
+
+  for (const arr of fixedLineByRoom.values()) {
+    arr.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  }
+
+  const fixedLineInfo = new Map();
+  for (const arr of fixedLineByRoom.values()) {
+    let prevDateMs = null;
+    let groupDayNumber = 0;
+
+    for (const row of arr) {
+      const curDateMs = row.date ? new Date(row.date).getTime() : NaN;
+      const isConsecutive =
+        prevDateMs !== null &&
+        Number.isFinite(curDateMs) &&
+        curDateMs - prevDateMs === 86400000;
+
+      groupDayNumber = isConsecutive ? groupDayNumber + 1 : 1;
+
+      fixedLineInfo.set(row.id, {
+        isFirstDay: !isConsecutive,
+        dayNumber: groupDayNumber,
+      });
+
+      prevDateMs = Number.isFinite(curDateMs) ? curDateMs : null;
+    }
+  }
+
+  return fixedLineInfo;
+}
+
 /**
  * インターネット料金を計算
  *
@@ -640,37 +680,7 @@ export function getAvailableInternetPlans(room) {
  */
 export function calculateInternetEstimate({ usageRows, internetSelections }) {
   if (!usageRows || !internetSelections) return { total: 0, lines: [] };
-
-  // 固定回線: 部屋ごとにまとめて日付順ソート →
-  // 「連続した日付のまとまり」ごとに初日を判定する。
-  // 例: 4/1, 4/2 は連続 → 4/1=初日, 4/2=2日目以降
-  //     4/10 は別グループ → 4/10=初日
-  const fixedLineByRoom = new Map();
-  for (const row of usageRows) {
-    if (internetSelections[row.id] === "fixed_line") {
-      const arr = fixedLineByRoom.get(row.room) ?? [];
-      arr.push(row);
-      fixedLineByRoom.set(row.room, arr);
-    }
-  }
-  for (const arr of fixedLineByRoom.values()) {
-    arr.sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  }
-
-  // rowId → isFirstDay（連続グループの先頭だけ true）
-  const fixedLineInfo = new Map();
-  for (const arr of fixedLineByRoom.values()) {
-    let prevDateMs = null;
-    for (const r of arr) {
-      const curDateMs = r.date ? new Date(r.date).getTime() : NaN;
-      const isConsecutive =
-        prevDateMs !== null &&
-        Number.isFinite(curDateMs) &&
-        curDateMs - prevDateMs === 86400000; // 1日 = 86,400,000ms
-      fixedLineInfo.set(r.id, !isConsecutive);
-      prevDateMs = Number.isFinite(curDateMs) ? curDateMs : null;
-    }
-  }
+  const fixedLineInfo = buildFixedLineDayInfo(usageRows, internetSelections);
 
   const lines = [];
   let total = 0;
@@ -687,7 +697,7 @@ export function calculateInternetEstimate({ usageRows, internetSelections }) {
       price = INTERNET_PLANS.pocket_wifi.pricePerDay;
       planName = INTERNET_PLANS.pocket_wifi.name;
     } else if (planKey === "fixed_line") {
-      isFirstDay = fixedLineInfo.get(row.id) ?? false;
+      isFirstDay = fixedLineInfo.get(row.id)?.isFirstDay ?? false;
       price = isFirstDay
         ? INTERNET_PLANS.fixed_line.firstDayPrice
         : INTERNET_PLANS.fixed_line.additionalDayPrice;
