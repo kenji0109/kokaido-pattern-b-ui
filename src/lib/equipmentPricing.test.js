@@ -4,6 +4,7 @@ import {
   buildEquipmentGroupIndex,
   buildEquipmentMasterIndex,
   buildFixedLineDayInfo,
+  getAvailableInternetPlans,
   calculateEquipmentEstimate,
   calculateInternetEstimate,
 } from "./equipmentPricing";
@@ -96,6 +97,35 @@ describe("calculateInternetEstimate – 固定回線の連続日付グループ�
     const internetSelections = { r1: "pocket_wifi", r2: "pocket_wifi" };
     const result = calculateInternetEstimate({ usageRows, internetSelections });
     expect(result.total).toBe(5600);
+  });
+
+  it("中集会室のWi-Fi 2日連続 → 25,000 + 3,000 = 28,000 円", () => {
+    const usageRows = [
+      row("r1", "中集会室", "2026-04-01"),
+      row("r2", "中集会室", "2026-04-02"),
+    ];
+    const internetSelections = { r1: "wifi", r2: "wifi" };
+    const result = calculateInternetEstimate({ usageRows, internetSelections });
+    expect(result.total).toBe(28000);
+    expect(result.lines.map((l) => l.price)).toEqual([25000, 3000]);
+  });
+
+  it("大会議室では有線LANを計算せず、Wi-Fiのみ固定ネット設備として選べる", () => {
+    const plans = getAvailableInternetPlans("大会議室").map((p) => p.key);
+    expect(plans).toContain("wifi");
+    expect(plans).not.toContain("fixed_line");
+
+    const result = calculateInternetEstimate({
+      usageRows: [row("r1", "大会議室", "2026-04-01")],
+      internetSelections: { r1: "fixed_line" },
+    });
+    expect(result.total).toBe(0);
+  });
+
+  it("5室外では常設回線・Wi-Fiを選べない", () => {
+    const plans = getAvailableInternetPlans("第1会議室").map((p) => p.key);
+    expect(plans).not.toContain("fixed_line");
+    expect(plans).not.toContain("wifi");
   });
 });
 

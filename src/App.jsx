@@ -25,7 +25,7 @@ import {
   getHallConsultationWarnings,
   getAvailableInternetPlans,
   calculateInternetEstimate,
-  buildFixedLineDayInfo,
+  buildInternetDayInfo,
 } from "./lib/equipmentPricing";
 
 function createRow(overrides = {}) {
@@ -222,8 +222,8 @@ export default function App() {
     });
   }, [filledRows, internetSelections]);
 
-  const fixedLineDayInfoByRow = useMemo(() => {
-    return buildFixedLineDayInfo(filledRows, internetSelections);
+  const internetDayInfoByRow = useMemo(() => {
+    return buildInternetDayInfo(filledRows, internetSelections);
   }, [filledRows, internetSelections]);
 
   // ─── 行ID → roomEstimate.items のマップ（行レベルのエラー表示用） ───
@@ -1321,16 +1321,14 @@ export default function App() {
                         const currentRowLine = internetEstimate.lines.find((l) => l.rowId === row.id);
                         const currentPrice = currentRowLine?.price ?? null;
 
-                        // 固定回線: この行が同一部屋で何日目か
-                        const fixedLineDayInfo =
-                          currentPlan === "fixed_line"
-                            ? fixedLineDayInfoByRow.get(row.id) ?? null
-                            : null;
+                        // 段階料金サービス: この行が同一部屋・同一サービスで何日目か
+                        const internetDayInfo = internetDayInfoByRow.get(row.id) ?? null;
 
                         // ラジオ選択肢の補足テキスト
                         const planSubtitles = {
                           pocket_wifi: "2,800円/日 ─ 全部屋で利用可能",
-                          fixed_line: "初日 18,000円 ＋ 2日目以降 2,000円/日",
+                          fixed_line: "有線LAN: 初日 18,000円 ＋ 2日目以降 2,000円/日",
+                          wifi: "Wi-Fi: 初日 25,000円 ＋ 2日目以降 3,000円/日",
                           temporary_line: "5,000円（1回）",
                         };
 
@@ -1408,7 +1406,7 @@ export default function App() {
                                         </span>
                                       </label>
                                     ))}
-                                    {fixedLineDayInfo && (
+                                    {internetDayInfo && currentPrice !== null && (
                                       <div
                                         style={{
                                           marginTop: "4px",
@@ -1420,7 +1418,7 @@ export default function App() {
                                           fontWeight: 700,
                                         }}
                                       >
-                                        この部屋の固定回線: {fixedLineDayInfo.dayNumber}日目（{fixedLineDayInfo.isFirstDay ? `初日 ${formatYen(18000)}` : `2日目以降 ${formatYen(2000)}/日`}）
+                                        この部屋の{currentPlanName}: {internetDayInfo.dayNumber}日目（{internetDayInfo.isFirstDay ? "初日" : "2日目以降"} {formatYen(currentPrice)}）
                                       </div>
                                     )}
                                   </div>
@@ -1706,7 +1704,7 @@ export default function App() {
                           <td>{displayRoomName(line.room)}</td>
                           <td>{line.planName}</td>
                           <td style={{ color: "#7b6f68", fontSize: "12px" }}>
-                            {line.plan === "fixed_line" && (line.isFirstDay ? "初日" : "2日目以降")}
+                            {(line.plan === "fixed_line" || line.plan === "wifi") && (line.isFirstDay ? "初日" : "2日目以降")}
                           </td>
                           <td><strong>{formatYen(line.price)}</strong></td>
                         </tr>

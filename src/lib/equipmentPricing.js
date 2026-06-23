@@ -592,10 +592,16 @@ export const INTERNET_PLANS = {
     allowedRooms: null,
   },
   fixed_line: {
-    name: "固定回線",
+    name: "常設回線（有線LAN）",
     firstDayPrice: 18000,
     additionalDayPrice: 2000,
-    allowedRooms: ["大集会室", "中集会室", "小集会室"],
+    allowedRooms: ["大集会室", "中集会室", "小集会室", "特別室"],
+  },
+  wifi: {
+    name: "Wi-Fi",
+    firstDayPrice: 25000,
+    additionalDayPrice: 3000,
+    allowedRooms: ["大集会室", "中集会室", "小集会室", "特別室", "大会議室"],
   },
   temporary_line: {
     name: "臨時回線",
@@ -603,6 +609,20 @@ export const INTERNET_PLANS = {
     allowedRooms: ["大集会室", "中集会室", "小集会室"],
   },
 };
+
+function isInternetPlanAvailableForRoom(plan, room) {
+  if (!plan) return false;
+  if (plan.allowedRooms === null) return true;
+  return plan.allowedRooms.includes(room);
+}
+
+function isStagedInternetPlan(plan) {
+  return (
+    plan &&
+    Number.isFinite(plan.firstDayPrice) &&
+    Number.isFinite(plan.additionalDayPrice)
+  );
+}
 
 /**
  * 部屋で利用可能なインターネットプランを返す（"なし" を含む）
@@ -614,10 +634,11 @@ export function getAvailableInternetPlans(room) {
   const result = [{ key: "none", name: "なし", label: "なし" }];
 
   for (const [key, plan] of Object.entries(INTERNET_PLANS)) {
-    if (plan.allowedRooms === null || plan.allowedRooms.includes(room)) {
+    if (isInternetPlanAvailableForRoom(plan, room)) {
       let label = plan.name;
       if (key === "pocket_wifi")    label += "（2,800円/日）";
       if (key === "fixed_line")     label += "（初日18,000円＋2日目以降2,000円/日）";
+      if (key === "wifi")           label += "（初日25,000円＋2日目以降3,000円/日）";
       if (key === "temporary_line") label += "（5,000円）";
       result.push({ key, name: plan.name, label });
     }
@@ -627,21 +648,39 @@ export function getAvailableInternetPlans(room) {
 }
 
 export function buildFixedLineDayInfo(usageRows, internetSelections) {
-  const fixedLineByRoom = new Map();
-  for (const row of usageRows ?? []) {
-    if (internetSelections?.[row.id] === "fixed_line") {
-      const arr = fixedLineByRoom.get(row.room) ?? [];
-      arr.push(row);
-      fixedLineByRoom.set(row.room, arr);
+  const info = buildInternetDayInfo(usageRows, internetSelections);
+  const fixedLineInfo = new Map();
+  for (const [rowId, rowInfo] of info) {
+    if (rowInfo.plan === "fixed_line") {
+      fixedLineInfo.set(rowId, {
+        isFirstDay: rowInfo.isFirstDay,
+        dayNumber: rowInfo.dayNumber,
+      });
     }
   }
+  return fixedLineInfo;
+}
 
-  for (const arr of fixedLineByRoom.values()) {
+export function buildInternetDayInfo(usageRows, internetSelections) {
+  const stagedRowsByPlanAndRoom = new Map();
+  for (const row of usageRows ?? []) {
+    const planKey = internetSelections?.[row.id];
+    const plan = INTERNET_PLANS[planKey];
+    if (!isStagedInternetPlan(plan)) continue;
+    if (!isInternetPlanAvailableForRoom(plan, row.room)) continue;
+
+    const key = `${planKey}::${row.room}`;
+    const arr = stagedRowsByPlanAndRoom.get(key) ?? [];
+    arr.push(row);
+    stagedRowsByPlanAndRoom.set(key, arr);
+  }
+
+  for (const arr of stagedRowsByPlanAndRoom.values()) {
     arr.sort((a, b) => String(a.date).localeCompare(String(b.date)));
   }
 
-  const fixedLineInfo = new Map();
-  for (const arr of fixedLineByRoom.values()) {
+  const stagedInfo = new Map();
+  for (const arr of stagedRowsByPlanAndRoom.values()) {
     let prevDateMs = null;
     let groupDayNumber = 0;
 
@@ -654,7 +693,9 @@ export function buildFixedLineDayInfo(usageRows, internetSelections) {
 
       groupDayNumber = isConsecutive ? groupDayNumber + 1 : 1;
 
-      fixedLineInfo.set(row.id, {
+      const planKey = internetSelections?.[row.id];
+      stagedInfo.set(row.id, {
+        plan: planKey,
         isFirstDay: !isConsecutive,
         dayNumber: groupDayNumber,
       });
@@ -663,14 +704,14 @@ export function buildFixedLineDayInfo(usageRows, internetSelections) {
     }
   }
 
-  return fixedLineInfo;
+  return stagedInfo;
 }
 
 /**
  * インターネット料金を計算
  *
- * 固定回線は同じ部屋でグループ化し日付順にソートして
- * 初日 18,000円、2日目以降 2,000円/日 を適用する。
+ * 常設回線（有線LAN）とWi-Fiは同じ部屋・同じサービスでグループ化し、
+ * 連続日付の場合に初日料金と2日目以降料金を適用する。
  *
  * @param {object} params
  * @param {Array}  params.usageRows          - filledRows（room・slot が入力済みの行）
@@ -680,7 +721,7 @@ export function buildFixedLineDayInfo(usageRows, internetSelections) {
  */
 export function calculateInternetEstimate({ usageRows, internetSelections }) {
   if (!usageRows || !internetSelections) return { total: 0, lines: [] };
-  const fixedLineInfo = buildFixedLineDayInfo(usageRows, internetSelections);
+  const stagedInfo = buildInternetDayInfo(usageRows, internetSelections);
 
   const lines = [];
   let total = 0;
@@ -688,6 +729,8 @@ export function calculateInternetEstimate({ usageRows, internetSelections }) {
   for (const row of usageRows) {
     const planKey = internetSelections[row.id];
     if (!planKey || planKey === "none") continue;
+    const plan = INTERNET_PLANS[planKey];
+    if (!isInternetPlanAvailableForRoom(plan, row.room)) continue;
 
     let price = 0;
     let planName = "";
@@ -696,12 +739,10 @@ export function calculateInternetEstimate({ usageRows, internetSelections }) {
     if (planKey === "pocket_wifi") {
       price = INTERNET_PLANS.pocket_wifi.pricePerDay;
       planName = INTERNET_PLANS.pocket_wifi.name;
-    } else if (planKey === "fixed_line") {
-      isFirstDay = fixedLineInfo.get(row.id)?.isFirstDay ?? false;
-      price = isFirstDay
-        ? INTERNET_PLANS.fixed_line.firstDayPrice
-        : INTERNET_PLANS.fixed_line.additionalDayPrice;
-      planName = INTERNET_PLANS.fixed_line.name;
+    } else if (isStagedInternetPlan(plan)) {
+      isFirstDay = stagedInfo.get(row.id)?.isFirstDay ?? false;
+      price = isFirstDay ? plan.firstDayPrice : plan.additionalDayPrice;
+      planName = plan.name;
     } else if (planKey === "temporary_line") {
       price = INTERNET_PLANS.temporary_line.priceOnce;
       planName = INTERNET_PLANS.temporary_line.name;
