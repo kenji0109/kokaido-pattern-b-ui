@@ -1,5 +1,24 @@
 # 料金シミュレーター
 
+## 2026-09-21 第1段階の作業版
+
+ブランチ `feat/calculator-integration-phase1`、起点 `f82f63c315dd04e18e9ef15f399d48c0a53b5cda`。
+`src/Calculator.jsx` は既存 `App.jsx` の日程カード・入力欄・小計表示を室料のみへ抽出し、
+Flaskの `/api/calculator/catalog` と `/api/calculator/estimate` に接続します。
+旧 `App.jsx`・料金ライブラリ・CSVは次段階の参照用として残し、現画面からは呼びません。
+延長と祝日を含む金額はPython APIだけで算出し、障害時のCSVへの切替はありません。
+
+- botを `http://127.0.0.1:5000` で起動し、`npm ci` → `npm run dev`。Vite proxyで接続します。
+- `npm test`、`npm run build`、`npm run build:integrated` が検証コマンドです。
+- 統合版の移植先はbotの `frontend/calculator/`。受け渡し後の主な更新先はbotです。
+  Bとbotで恒常的な二重手修正は行いません。
+- APIが必要なので、このブランチをGitHub Pagesへデプロイしません。
+- 備品・ネット・技術者・複数行・AI相談引継ぎは今回の画面の対象外です。
+- 2026-09-21追加承認により、本作業ブランチだけcommit/pushを行います。mainへのmergeと本番反映は別途確認後です。
+- GitHub Pagesの現在の配信元は `gh-pages`。本ブランチのCIはテスト・ビルドのみで、`npm run deploy` やPages公開処理を含みません。
+
+## 旧版の仕様・手順（このブランチの現行画面には適用しない）
+
 個人が趣味で作った。部屋利用料・延長料・備品料・インターネット料金を  
 ブラウザ上でかんたんに試算できる React アプリです。
 

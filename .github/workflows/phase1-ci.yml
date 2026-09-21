@@ -1,0 +1,30 @@
+name: Calculator phase 1 CI
+
+on:
+  push:
+    branches: [feat/calculator-integration-phase1]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.14.1"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run tests
+        run: npm test
+      - name: Build standalone and integrated calculator
+        run: |
+          npm run build
+          npm run build:integrated

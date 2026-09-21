@@ -1,0 +1,27 @@
+/* Extracted from B's panel/day-card/form-grid/total-box. All selectors are scoped. */
+.calculator { --calc-line: #d9ccbb; --calc-accent: #755b37; padding: 22px; color: #2c2416; font-family: 'Noto Sans JP', 'Yu Gothic', sans-serif; line-height: 1.7; }
+.calculator * { box-sizing: border-box; }
+.calculator .panel-head { margin-bottom: 12px; }
+.calculator h2 { margin: 0; font-size: 23px; }
+.calculator h3 { margin: 0 0 8px; font-size: 18px; }
+.calculator p { margin: 8px 0; }
+.calculator .scope-note, .calculator .mini-note { font-size: 13px; color: #655747; }
+.calculator .scope-note { margin-bottom: 18px; }
+.calculator .day-card { background: #fbf8f4; border: 1px solid var(--calc-line); border-radius: 16px; padding: 18px; }
+.calculator .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.calculator .form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0; }
+.calculator input, .calculator select, .calculator button { font: inherit; min-height: 44px; }
+.calculator input, .calculator select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--calc-line); border-radius: 8px; background: white; color: #2c2416; }
+.calculator button { cursor: pointer; padding: 10px 18px; border: 1px solid var(--calc-accent); border-radius: 8px; background: white; color: var(--calc-accent); }
+.calculator .calculate-button { width: 100%; margin-top: 12px; color: white; background: var(--calc-accent); font-weight: 700; }
+.calculator button:disabled { opacity: .55; cursor: not-allowed; }
+.calculator :focus-visible { outline: 3px solid #a6721b; outline-offset: 3px; }
+.calculator .notice-box { padding: 12px; border: 1px solid #d0a29a; border-radius: 8px; margin-top: 12px; }
+.calculator .error-box { background: #fff4f2; color: #9a3026; }
+.calculator .summary-panel { margin-top: 20px; border: 1px solid var(--calc-line); border-radius: 16px; padding: 18px; }
+.calculator .total-box { margin: 16px 0; }
+.calculator .total-line { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 14px; }
+.calculator dd { margin: 0; text-align: right; }
+.calculator .grand { border-top: 1px solid var(--calc-line); margin-top: 8px; padding-top: 14px; font-weight: 700; font-size: 18px; }
+.calculator .version-note { color: #655747; font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .calculator { padding: 16px; } .calculator .form-grid { grid-template-columns: 1fr; } .calculator .grand { font-size: 16px; } }
